@@ -1,4 +1,3 @@
-# Load necessary libraries
 library(shiny)
 library(ggplot2)
 library(dplyr)
@@ -6,127 +5,174 @@ library(caret)
 library(randomForest)
 library(DT)
 library(plotly)
+library(shinythemes)
+
+# Sample user credentials
+valid_users <- data.frame(
+  username = c("admin", "user1"),
+  password = c("password123", "mypassword")
+)
 
 # Load the data
 airlines_reviews <- read.csv("C:\\Users\\harsh\\OneDrive\\Desktop\\airlines_reviews.csv")
 
 # Preprocess data
 airlines_reviews$Recommended <- as.factor(ifelse(airlines_reviews$Recommended == "yes", 1, 0))
-
-# Train the Random Forest model with the full dataset
 model_data <- airlines_reviews %>%
   select(Seat.Comfort, Staff.Service, Food...Beverages, Inflight.Entertainment, Value.For.Money, Overall.Rating, Recommended) %>%
   na.omit()
-
 set.seed(123)
 trainIndex <- createDataPartition(model_data$Recommended, p = 0.8, list = FALSE)
 trainData <- model_data[trainIndex, ]
 testData <- model_data[-trainIndex, ]
 rf_model <- randomForest(Recommended ~ ., data = trainData, ntree = 100, mtry = 3, importance = TRUE)
 
+
 # Model performance on test data
 rf_predictions <- predict(rf_model, testData, type = "response")
 conf_matrix <- confusionMatrix(rf_predictions, testData$Recommended)
 feature_importance <- importance(rf_model)
 
-# Define UI for the Shiny app
+# Define UI
 ui <- fluidPage(
-  tags$head(
-    tags$style(HTML("
-      body {
-        background-color: #e6f9e6;
-        font-family: Arial, sans-serif;
-      }
-      h1 {
-        color: #2e8b57;
-        font-size: 28px;
-        font-weight: bold;
-        text-align: center;
-        background-color: #3cb371;
-        padding: 12px;
-        border-radius: 10px;
-        color: white;
-      }
-      .container {
-        padding: 20px;
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        background-color: #d4edda;
-      }
-      .sidebarPanel {
-        background-color: #98fb98;
-        padding: 20px;
-        border-radius: 8px;
-        margin-right: 10px;
-      }
-      .summary-title {
-        color: #3c763d;
-        font-size: 20px;
-        font-weight: bold;
-        margin-top: 15px;
-      }
-      .summary-content {
-        color: #333;
-        margin-bottom: 20px;
-      }
-      .highlight {
-        color: #2e8b57;
-        font-weight: bold;
-      }
-      .btn {
-        background-color: #32cd32;
-        color: white;
-        border-radius: 8px;
-        font-weight: bold;
-      }
-      .tab-pane {
-        padding: 20px;
-        background-color: #f0f9f0;
-        border-radius: 8px;
-      }
-    "))
-  ),
-  
-  titlePanel("Airlines Reviews Analysis with Machine Learning Predictions"),
-  
-  sidebarLayout(
-    sidebarPanel(
-      h4("Select Analysis Options"),
-      selectInput("airline", "Choose an Airline:", choices = unique(airlines_reviews$Airline)),
-      selectInput("x_var", "Choose X-axis Variable:", choices = c("Seat.Comfort", "Staff.Service", "Food...Beverages")),
-      selectInput("fill_var", "Choose Fill Variable:", choices = c("Recommended", "Class")),
-      selectInput("chart_type", "Select Chart Type:", 
-                  choices = c("Bar Chart", "Scatter Plot", "Pie Chart", "Line Chart", "Heatmap")),
-      actionButton("analyze", "Analyze", class = "btn"),
-      
-      hr(),
-      h4("Individual Prediction Inputs"),
-      sliderInput("seat_comfort", "Seat Comfort:", min = 1, max = 5, value = 3),
-      sliderInput("staff_service", "Staff Service:", min = 1, max = 5, value = 3),
-      sliderInput("food_quality", "Food & Beverages Quality:", min = 1, max = 5, value = 3),
-      sliderInput("value_for_money", "Value for Money:", min = 1, max = 5, value = 3),
-      sliderInput("overall_rating", "Overall Rating:", min = 1, max = 5, value = 3),
-      actionButton("predict", "Generate Individual Prediction", class = "btn"),
-      
-      hr(),
-      actionButton("collective_predict", "Generate Collective Prediction Summary", class = "btn")
-    ),
-    
-    mainPanel(
-      tabsetPanel(
-        tabPanel("Summary", uiOutput("summary")),
-        tabPanel("Charts", plotlyOutput("charts")),
-        tabPanel("Machine Learning Summary", uiOutput("ml_results")),
-        tabPanel("Individual Prediction", uiOutput("prediction_output")),
-        tabPanel("Collective Predictions", uiOutput("collective_predictions_output"))
-      )
-    )
-  )
+  theme = shinytheme("flatly"), # Lighter color scheme for the theme
+  uiOutput("main_ui") # Dynamic UI for login or app content
 )
 
 # Define server logic
-server <- function(input, output) {
+server <- function(input, output, session) {
+  # Reactive value to track login status
+  logged_in <- reactiveVal(FALSE)
   
+  
+  # Reactive data filtering based on user-selected airline
+  filtered_data <- reactive({
+    req(input$analyze)
+    airlines_reviews[airlines_reviews$Airline == input$airline, ]
+  })
+  
+  
+  # Render the main UI based on login status
+  output$main_ui <- renderUI({
+    if (logged_in()) {
+      # Home page UI with all functionalities
+      fluidPage(
+        titlePanel(
+          div(
+            tags$img(src = "https://i.pinimg.com/736x/8b/91/39/8b9139ada178009954fb16c5244b7c3a.jpg", height = "50px", style = "margin-right: 10px;"),
+            "Airlines Reviews Analysis App"
+          )
+        ),
+        navbarPage(
+          title = "Explore Airlines Data",
+          tabPanel("Home",
+                   div(
+                     style = "text-align: center; margin: 20px;",
+                     tags$img(
+                       src = "https://i.pinimg.com/736x/f9/42/89/f942892a194995d3e3a38175156d269e.jpg",
+                       height = "300px",
+                       style = "margin-bottom: 20px; border-radius: 10px;"
+                     ),
+                     h1("Welcome to the Airlines Reviews Analysis App"),
+                     p("Analyze customer reviews, generate predictions, and explore insights.")
+                   )),
+          tabPanel("Data Analysis",
+                   sidebarLayout(
+                     sidebarPanel(
+                       h4("Select Analysis Options"),
+                       selectInput("airline", "Choose an Airline:", choices = unique(airlines_reviews$Airline)),
+                       selectInput("x_var", "Choose X-axis Variable:", choices = c("Seat.Comfort", "Staff.Service", "Food...Beverages")),
+                       selectInput("fill_var", "Choose Fill Variable:", choices = c("Recommended", "Class")),
+                       selectInput("chart_type", "Select Chart Type:", choices = c("Bar Chart", "Scatter Plot", "Pie Chart", "Line Chart", "Heatmap")),
+                       actionButton("analyze", "Analyze", class = "btn btn-primary"),
+                       hr(),
+                       h4("Individual Prediction Inputs"),
+                       sliderInput("seat_comfort", "Seat Comfort:", min = 1, max = 5, value = 3),
+                       sliderInput("staff_service", "Staff Service:", min = 1, max = 5, value = 3),
+                       sliderInput("food_quality", "Food & Beverages Quality:", min = 1, max = 5, value = 3),
+                       sliderInput("value_for_money", "Value for Money:", min = 1, max = 5, value = 3),
+                       sliderInput("overall_rating", "Overall Rating:", min = 1, max = 5, value = 3),
+                       actionButton("predict", "Generate Prediction", class = "btn btn-success"),
+                       hr(),
+                       actionButton("collective_predict", "Generate Collective Predictions", class = "btn btn-warning")
+                     ),
+                     mainPanel(
+                       tabsetPanel(
+                         tabPanel("Summary", uiOutput("summary")),
+                         tabPanel("Charts", plotlyOutput("charts")),
+                         tabPanel("Machine Learning Summary", uiOutput("ml_results")),
+                         tabPanel("Predictions", uiOutput("prediction_output")),
+                         tabPanel("Collective Predictions", uiOutput("collective_predictions_output"))
+                       )
+                     )
+                   )),
+          tabPanel("About",
+                   div(
+                     style = "text-align: center; padding: 20px;",
+                     h2("About This Project"),
+                     p("This app is designed to provide insights into customer reviews of airlines"),
+                     tags$ul(
+                       tags$li("Understand customer satisfaction metrics."),
+                       tags$li("Visualize trends in reviews based on different variables."),
+                       tags$li("Predict the likelihood of a customer recommending an airline."),
+                       tags$li("Explore the performance of airlines across various parameters.")
+                     ),
+                     tags$img(
+                       src = "https://i.pinimg.com/736x/30/db/39/30db3919b34cb4e094cd5511684cda80.jpg",
+                       height = "300px",
+                       style = "margin-top: 20px; border-radius: 10px;"
+                     )
+                   )),
+          tabPanel("Logout", actionButton("logout", "Logout", class = "btn btn-danger"))
+        )
+      )
+    } else {
+      # Login page UI
+      fluidPage(
+        tags$head(
+          tags$style(HTML("
+            body {
+              background: #f8f9fa;
+              color: #343a40;
+              font-family: Arial, sans-serif;
+            }
+            .login-box {
+              max-width: 400px;
+              margin: 100px auto;
+              padding: 20px;
+              background-color: #ffffff;
+              border: 1px solid #ced4da;
+              border-radius: 10px;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+          "))
+        ),
+        div(
+          class = "login-box",
+          h2("Login", style = "text-align: center; color: #343a40;"),
+          textInput("username", "Username", placeholder = "Enter your username"),
+          passwordInput("password", "Password", placeholder = "Enter your password"),
+          actionButton("login", "Login", class = "btn btn-primary btn-block"),
+          tags$p("Enter valid credentials to continue.", style = "text-align: center; margin-top: 10px; color: #666;")
+        )
+      )
+    }
+  })
+  
+  # Login logic
+  observeEvent(input$login, {
+    req(input$username, input$password)
+    if (any(valid_users$username == input$username & valid_users$password == input$password)) {
+      logged_in(TRUE)
+    } else {
+      showNotification("Invalid username or password.", type = "error")
+    }
+  })
+  
+  # Logout logic
+  observeEvent(input$logout, {
+    logged_in(FALSE)
+  })
   # Reactive data filtering based on user-selected airline
   filtered_data <- reactive({
     req(input$analyze)
@@ -294,6 +340,10 @@ server <- function(input, output) {
     ggplotly(plot)
   })
 }
+
+
+
+
 
 # Run the application
 shinyApp(ui = ui, server = server)
